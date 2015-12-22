@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import iso8601
 import xml.etree.ElementTree as ET
 
 class Seiscomp3 (object):
@@ -8,12 +9,16 @@ class Seiscomp3 (object):
         self.checksLogger = checksLogger
         self.rawConfig = rawConfig
 
+        # File to read SC3 SoH information from
+        self.file = self.rawConfig['Seiscomp3']\
+            .get('file', '/home/seiscomp/.seiscomp3/log/server.xml')
+
+        self.updates = {}
+
     def run(self):
         data = {}
-
-        file ='/home/seiscomp/.seiscomp3/log/server.xml'
-
-        tree = ET.parse(file)
+        
+        tree = ET.parse(self.file)
         root = tree.getroot()
 
         tests = ['uptime','cpuusage','clientmemoryusage']
@@ -26,14 +31,60 @@ class Seiscomp3 (object):
                 source = service.get('host')
                 for test in service.findall('test'):
                     if test.get('name') in tests:
-                        data[serviceName + '-' + test.get('name')] = test.get('value')
+                        time = iso8601.parse_date(test.get('updateTime')).utctimetuple()
+                        key = serviceName + '-' + test.get('name')
+                        last = self.updates.get(key,0)
+                        if time != last:
+                            data[key] = test.get('value')
+                            self.updates[key] = time
                 for object in service.findall('input/object'):
                     if object.get('name') in objects:
-                        data[serviceName + '-input-' + object.get('name')] = object.get('count')
+                        time = iso8601.parse_date(test.get('updateTime')).utctimetuple()
+                        key = serviceName + '-input-' + object.get('name') 
+                        last = self.updates.get(key,0)
+                        if time != last:
+                            data[key] = object.get('count')
+                            self.updates[key] = time
                 for object in service.findall('output/object'):
                     if object.get('name') in objects:
-                        data[serviceName + '-output-' + object.get('name')] = object.get('count')
+                        time = iso8601.parse_date(test.get('updateTime')).utctimetuple()
+                        key = serviceName + '-output-' + object.get('name') 
+                        last = self.updates.get(key,0)
+                        if time != last:
+                            data[key] = object.get('count')
+                            self.updates[key] = time
 
         return data
+
+    
+
+if __name__ == '__main__':
+    """Standalone test
+    """
+
+    import json
+    import logging
+    import sys
+    import time
+
+    raw_agent_config = {
+        'Seiscomp3': {
+        }
+    }
+    if sys.argv[1]:
+        raw_agent_config['Seiscomp3']['file'] = sys.argv[1]
+
+    main_checks_logger = logging.getLogger('Seiscomp3')
+    main_checks_logger.setLevel(logging.DEBUG)
+    main_checks_logger.addHandler(logging.StreamHandler(sys.stdout))
+    sc3_check = Seiscomp3({}, main_checks_logger, raw_agent_config)
+
+    while True:
+        try:
+            print json.dumps(sc3_check.run(), indent=4, sort_keys=True)
+        except:
+            main_checks_logger.exception("Unhandled exception")
+        finally:
+            time.sleep(60)
 
 # vim: set ts=4 sw=4 tw=0 et:
