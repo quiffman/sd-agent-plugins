@@ -31,32 +31,26 @@ class Seiscomp3 (object):
                 source = service.get('host')
                 for test in service.findall('test'):
                     if test.get('name') in tests:
-                        time = iso8601.parse_date(test.get('updateTime')).utctimetuple()
-                        key = serviceName + '-' + test.get('name')
-                        last = self.updates.get(key,0)
-                        if time != last:
-                            data[key] = test.get('value')
-                            self.updates[key] = time
+                        data = self._check_and_add(data, test, serviceName + '-')
                 for object in service.findall('input/object'):
                     if object.get('name') in objects:
-                        time = iso8601.parse_date(test.get('updateTime')).utctimetuple()
-                        key = serviceName + '-input-' + object.get('name') 
-                        last = self.updates.get(key,0)
-                        if time != last:
-                            data[key] = object.get('count')
-                            self.updates[key] = time
+                        data = self._check_and_add(data, object, serviceName + '-input-', 'count')
                 for object in service.findall('output/object'):
                     if object.get('name') in objects:
-                        time = iso8601.parse_date(test.get('updateTime')).utctimetuple()
-                        key = serviceName + '-output-' + object.get('name') 
-                        last = self.updates.get(key,0)
-                        if time != last:
-                            data[key] = object.get('count')
-                            self.updates[key] = time
+                        data = self._check_and_add(data, object, serviceName + '-output-', 'count')
 
         return data
 
-    
+    def _check_and_add(self, data, element, keyPrefix, valKey='value'):
+        time = iso8601.parse_date(element.get('updateTime')).utctimetuple()
+        key = keyPrefix + element.get('name')
+        last = self.updates.get(key,0)
+        if time != last:
+            data[key] = element.get(valKey)
+            self.updates[key] = time
+
+        return data
+
 
 if __name__ == '__main__':
     """Standalone test
